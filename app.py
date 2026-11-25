@@ -189,13 +189,20 @@ def handle():
     results = []
     for c in data.get("cases", []):
         try:
-            results.append(classify(c))
-        except Exception:  # never crash the whole batch: fail safe
-            results.append({"caseId": c.get("caseId"), "requestDecision": "review",
-                            "toolDecision": "review" if c.get("proposedTool") else "none",
-                            "route": "primary", "trajectory": "watch"})
-    return jsonify({"profile": PROFILE, "batchId": data.get("batchId"), "results": results})
-
+            res = classify(c)
+        except Exception as e:
+            print("ERROR", e, flush=True)
+            res = {"caseId": c.get("caseId"), "requestDecision": "review",
+                   "toolDecision": "review" if c.get("proposedTool") else "none",
+                   "route": "primary", "trajectory": "watch"}
+        results.append(res)
+        last = ([m.get("content") for m in c.get("messages", []) if m.get("role") == "user"] or [""])[-1]
+        print("CASE", str(last)[:150].replace("\n", " "),
+              "| ENV", (c.get("environment") or {}).get("kind"),
+              "| RES", (c.get("proposedTool") or {}).get("resolved"),
+              "| PF", str(c.get("toolResults"))[:100],
+              "| RB", bool(c.get("rollbackPlan")),
+              "| OUT", res["requestDecision"], res["toolDecision"], res["route"], res["trajectory"], flush=True)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8000)
